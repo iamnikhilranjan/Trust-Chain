@@ -54,6 +54,8 @@ async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
     ...(options.headers as Record<string, string> || {}),
   };
 
@@ -75,7 +77,10 @@ async function request<T>(
 }
 
 export async function requestRaw(path: string): Promise<Response> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = {
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
+  };
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`;
   }
