@@ -163,6 +163,14 @@ export async function registerSchema(payload: RegisterSchemaRequest): Promise<Tx
 
 // ── Assets ────────────────────────────────────────────────────────────────
 
+export async function getMyAssets(address: string): Promise<AssetRecord[]> {
+  return request<AssetRecord[]>(`/assets/my?address=${encodeURIComponent(address)}`);
+}
+
+export async function listAllAssets(): Promise<AssetRecord[]> {
+  return request<AssetRecord[]>('/assets');
+}
+
 export async function getAsset(tokenId: number): Promise<AssetRecord> {
   return request<AssetRecord>(`/assets/${tokenId}`);
 }

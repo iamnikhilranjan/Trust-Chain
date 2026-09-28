@@ -190,13 +190,13 @@ export default function IssueAssetPage() {
     }
 
     // Determine issuer DID
-    // In TrustChain contract, caller must be controller of issuerDID.
-    // For admin wallet (0x2cb4f72907B1EC202a2f751Da0286aa9Ee2E3b33), the registered DID is did:trustchain:0x2cb4f72907B1EC202a2f751Da0286aa9Ee2E3b33
     const issuerDid = address
       ? `did:trustchain:${address}`
       : 'did:trustchain:0x2cb4f72907B1EC202a2f751Da0286aa9Ee2E3b33';
 
     const expiryTimestamp = expiresAt ? BigInt(Math.floor(new Date(expiresAt).getTime() / 1000)) : 0n;
+    const credHashBytes = (trimmedCredHash.startsWith('0x') ? trimmedCredHash : `0x${trimmedCredHash}`) as `0x${string}`;
+    const recipientAddr = (recipient || address) as `0x${string}`;
 
     setIsAwaitingSignature(true);
     setTxHash(undefined);
@@ -208,12 +208,12 @@ export default function IssueAssetPage() {
         abi: ASSET_REGISTRY_ABI,
         functionName: 'issueAsset',
         args: [
-          recipient,
+          recipientAddr,
           trimmedOwnerDid,
           issuerDid,
           trimmedAssetType,
           trimmedSchemaId,
-          trimmedCredHash as `0x${string}`,
+          credHashBytes,
           trimmedMetadataUri,
           expiryTimestamp,
           isTransferable,
@@ -251,6 +251,30 @@ export default function IssueAssetPage() {
   };
 
   const isBusy = isAwaitingSignature || isConfirming;
+
+  if (!isAuthenticated || !isConnected) {
+    return (
+      <div className="section">
+        <div className="container" style={{ maxWidth: 600, textAlign: 'center', padding: 'var(--space-16) 0' }}>
+          <ShieldAlert size={48} color="var(--warning)" style={{ margin: '0 auto' }} />
+          <h3 style={{ marginTop: 'var(--space-4)' }}>Authentication Required</h3>
+          <p style={{ color: 'var(--gray-600)' }}>Please connect your wallet to issue credentials.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isManager && !isAdmin) {
+    return (
+      <div className="section">
+        <div className="container" style={{ maxWidth: 600, textAlign: 'center', padding: 'var(--space-16) 0' }}>
+          <ShieldAlert size={48} color="var(--danger)" style={{ margin: '0 auto' }} />
+          <h3 style={{ marginTop: 'var(--space-4)' }}>Manager Role Required</h3>
+          <p style={{ color: 'var(--gray-600)' }}>Only accounts with the Manager or Admin role are permitted to issue asset NFTs.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="section">
@@ -304,8 +328,8 @@ export default function IssueAssetPage() {
             >
               <option value="">Select a schema...</option>
               {schemas.map((s) => (
-                <option key={s.schema_id} value={s.schema_id}>
-                  {s.schema_id} — {s.name}
+                <option key={s.schema_id} value={s.schema_id} disabled={!s.is_active}>
+                  {s.schema_id} — {s.name} {!s.is_active ? '(Inactive)' : ''}
                 </option>
               ))}
             </select>

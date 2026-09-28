@@ -14,6 +14,8 @@ import {
   Sparkles,
   ShieldAlert,
   ChevronUp,
+  Power,
+  PowerOff,
 } from 'lucide-react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useChainId, useSwitchChain } from 'wagmi';
 import { sepolia } from 'wagmi/chains';
@@ -49,10 +51,19 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
   const [txHash, setTxHash] = useState<`0x${string}` | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
+  // Status toggle states
+  const [togglingSchemaId, setTogglingSchemaId] = useState<string | null>(null);
+  const [statusTxHash, setStatusTxHash] = useState<`0x${string}` | undefined>(undefined);
+  const [statusFeedback, setStatusFeedback] = useState<{ id: string; msg: string; isError: boolean } | null>(null);
+
   const { writeContractAsync } = useWriteContract();
 
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
     hash: txHash,
+  });
+
+  const { isLoading: isStatusConfirming, isSuccess: isStatusConfirmed } = useWaitForTransactionReceipt({
+    hash: statusTxHash,
   });
 
   const loadSchemas = () => {
@@ -67,12 +78,20 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
     loadSchemas();
   }, []);
 
-  // When transaction confirms on-chain, re-fetch list and reset form
+  // When registration transaction confirms on-chain, re-fetch list and reset form
   useEffect(() => {
     if (isConfirmed && txHash) {
       loadSchemas();
     }
   }, [isConfirmed, txHash]);
+
+  // When status toggle transaction confirms on-chain, re-fetch list
+  useEffect(() => {
+    if (isStatusConfirmed && statusTxHash) {
+      loadSchemas();
+      setTogglingSchemaId(null);
+    }
+  }, [isStatusConfirmed, statusTxHash]);
 
   // Generate unique Keccak-256 hash for the schema
   const handleGenerateHash = () => {
@@ -132,6 +151,8 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
       }
     }
 
+    const schemaHashBytes = (trimmedHash.startsWith('0x') ? trimmedHash : `0x${trimmedHash}`) as `0x${string}`;
+
     setIsAwaitingSignature(true);
     setTxHash(undefined);
 
@@ -145,7 +166,7 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
           trimmedId,
           trimmedName,
           trimmedUri,
-          trimmedHash as `0x${string}`,
+          schemaHashBytes,
           trimmedVersion,
         ],
       });
@@ -171,6 +192,56 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
       }
     } finally {
       setIsAwaitingSignature(false);
+    }
+  };
+
+  const handleToggleStatus = async (targetSchemaId: string, currentStatus: boolean) => {
+    setStatusFeedback(null);
+    if (chainId !== sepolia.id && switchChain) {
+      try {
+        await switchChain({ chainId: sepolia.id });
+      } catch {
+        setStatusFeedback({
+          id: targetSchemaId,
+          msg: 'Please switch your wallet network to Ethereum Sepolia.',
+          isError: true,
+        });
+        return;
+      }
+    }
+
+    setTogglingSchemaId(targetSchemaId);
+    setStatusTxHash(undefined);
+
+    try {
+      const hash = await writeContractAsync({
+        address: CONTRACT_ADDRESSES.SCHEMA_REGISTRY,
+        abi: SCHEMA_REGISTRY_ABI,
+        functionName: 'setSchemaStatus',
+        args: [targetSchemaId, !currentStatus],
+      });
+
+      setStatusTxHash(hash);
+      setStatusFeedback({
+        id: targetSchemaId,
+        msg: `Transaction submitted! Setting schema to ${!currentStatus ? 'Active' : 'Inactive'}...`,
+        isError: false,
+      });
+    } catch (err: unknown) {
+      const anyErr = err as Record<string, unknown> | null;
+      const shortMsg = (anyErr?.shortMessage as string) || (err instanceof Error ? err.message : 'Action failed');
+      
+      if (
+        shortMsg.includes('User rejected') ||
+        shortMsg.includes('User denied') ||
+        shortMsg.includes('user rejected') ||
+        anyErr?.name === 'UserRejectedRequestError'
+      ) {
+        setStatusFeedback({ id: targetSchemaId, msg: 'Transaction was cancelled in wallet.', isError: true });
+      } else {
+        setStatusFeedback({ id: targetSchemaId, msg: shortMsg, isError: true });
+      }
+      setTogglingSchemaId(null);
     }
   };
 
@@ -200,32 +271,34 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
             </p>
           </div>
 
-          <button
-            type="button"
-            className={`btn ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
-            onClick={() => {
-              setShowCreateForm(!showCreateForm);
-              setError(null);
-              setTxHash(undefined);
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              padding: '8px 18px',
-              fontWeight: 600,
-            }}
-          >
-            {showCreateForm ? (
-              <>
-                <ChevronUp size={16} /> Hide Registration Form
-              </>
-            ) : (
-              <>
-                <Plus size={16} /> Register New Schema
-              </>
-            )}
-          </button>
+          {(isManager || isAdmin) && (
+            <button
+              type="button"
+              className={`btn ${showCreateForm ? 'btn-secondary' : 'btn-primary'}`}
+              onClick={() => {
+                setShowCreateForm(!showCreateForm);
+                setError(null);
+                setTxHash(undefined);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 18px',
+                fontWeight: 600,
+              }}
+            >
+              {showCreateForm ? (
+                <>
+                  <ChevronUp size={16} /> Hide Registration Form
+                </>
+              ) : (
+                <>
+                  <Plus size={16} /> Register New Schema
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Collapsible Registration Form Card */}
@@ -497,82 +570,140 @@ export default function SchemasPage({ createMode = false }: SchemasPageProps) {
               gap: 'var(--space-6)',
             }}
           >
-            {schemas.map((schema) => (
-              <div key={schema.schema_id} className="card" style={{ padding: 'var(--space-6)' }}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    marginBottom: 'var(--space-4)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
-                    <Blocks size={20} color="var(--primary-600)" />
-                    <h4 style={{ margin: 0, fontSize: 'var(--text-base)' }}>
-                      {schema.name || schema.schema_id}
-                    </h4>
-                  </div>
-                  {schema.is_active ? (
-                    <span className="badge badge-active">
-                      <CheckCircle size={10} /> Active
-                    </span>
-                  ) : (
-                    <span className="badge badge-revoked">
-                      <XCircle size={10} /> Inactive
-                    </span>
-                  )}
-                </div>
+            {schemas.map((schema) => {
+              const isTogglingThis = togglingSchemaId === schema.schema_id && (isStatusConfirming || !statusTxHash);
+              const cardFeedback = statusFeedback?.id === schema.schema_id ? statusFeedback : null;
 
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 'var(--space-2)',
-                    fontSize: 'var(--text-sm)',
-                  }}
-                >
+              return (
+                <div key={schema.schema_id} className="card" style={{ padding: 'var(--space-6)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                   <div>
-                    <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema ID</strong>
-                    <br />
-                    <code>{schema.schema_id}</code>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        marginBottom: 'var(--space-4)',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                        <Blocks size={20} color="var(--primary-600)" />
+                        <h4 style={{ margin: 0, fontSize: 'var(--text-base)' }}>
+                          {schema.name || schema.schema_id}
+                        </h4>
+                      </div>
+                      {schema.is_active ? (
+                        <span className="badge badge-active">
+                          <CheckCircle size={10} /> Active
+                        </span>
+                      ) : (
+                        <span className="badge badge-revoked">
+                          <XCircle size={10} /> Inactive
+                        </span>
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 'var(--space-2)',
+                        fontSize: 'var(--text-sm)',
+                      }}
+                    >
+                      <div>
+                        <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema ID</strong>
+                        <br />
+                        <code>{schema.schema_id}</code>
+                      </div>
+                      <div>
+                        <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Version</strong>
+                        <br />
+                        {schema.version || '—'}
+                      </div>
+                      <div>
+                        <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Author</strong>
+                        <br />
+                        <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
+                          {schema.author || '—'}
+                        </span>
+                      </div>
+                      <div>
+                        <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema Hash</strong>
+                        <br />
+                        <span className="mono" style={{ fontSize: 'var(--text-xs)', wordBreak: 'break-all' }}>
+                          {schema.schema_hash || '—'}
+                        </span>
+                      </div>
+                      {schema.schema_uri && (
+                        <div>
+                          <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema URI</strong>
+                          <br />
+                          <a
+                            href={schema.schema_uri}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: 'var(--text-xs)' }}
+                          >
+                            {schema.schema_uri}
+                          </a>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div>
-                    <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Version</strong>
-                    <br />
-                    {schema.version || '—'}
-                  </div>
-                  <div>
-                    <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Author</strong>
-                    <br />
-                    <span className="mono" style={{ fontSize: 'var(--text-xs)' }}>
-                      {schema.author || '—'}
-                    </span>
-                  </div>
-                  <div>
-                    <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema Hash</strong>
-                    <br />
-                    <span className="mono" style={{ fontSize: 'var(--text-xs)', wordBreak: 'break-all' }}>
-                      {schema.schema_hash || '—'}
-                    </span>
-                  </div>
-                  {schema.schema_uri && (
-                    <div>
-                      <strong style={{ color: 'var(--gray-500)', fontSize: 'var(--text-xs)' }}>Schema URI</strong>
-                      <br />
-                      <a
-                        href={schema.schema_uri}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontSize: 'var(--text-xs)' }}
+
+                  {/* Manager/Admin Status Toggle Action */}
+                  {(isManager || isAdmin) && (
+                    <div style={{ marginTop: 'var(--space-5)', paddingTop: 'var(--space-4)', borderTop: '1px solid var(--gray-100)' }}>
+                      {cardFeedback && (
+                        <div
+                          style={{
+                            marginBottom: 'var(--space-3)',
+                            padding: '6px 10px',
+                            borderRadius: '6px',
+                            fontSize: 'var(--text-xs)',
+                            backgroundColor: cardFeedback.isError ? 'var(--danger-50, #fef2f2)' : 'var(--primary-50, #eef2ff)',
+                            color: cardFeedback.isError ? 'var(--danger)' : 'var(--primary-700)',
+                            border: `1px solid ${cardFeedback.isError ? 'var(--danger-200, #fecaca)' : 'var(--primary-200, #c7d2fe)'}`,
+                          }}
+                        >
+                          {cardFeedback.msg}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleToggleStatus(schema.schema_id, schema.is_active)}
+                        disabled={isBusy || (togglingSchemaId !== null && togglingSchemaId !== schema.schema_id)}
+                        className={`btn btn-sm ${schema.is_active ? 'btn-secondary' : 'btn-primary'}`}
+                        style={{
+                          width: '100%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          color: schema.is_active ? 'var(--danger, #ef4444)' : undefined,
+                          borderColor: schema.is_active ? 'var(--danger-200, #fecaca)' : undefined,
+                        }}
                       >
-                        {schema.schema_uri}
-                      </a>
+                        {isTogglingThis ? (
+                          <>
+                            <Loader2 size={14} className="spin" /> Processing On-Chain...
+                          </>
+                        ) : schema.is_active ? (
+                          <>
+                            <PowerOff size={14} /> Deactivate Schema
+                          </>
+                        ) : (
+                          <>
+                            <Power size={14} /> Reactivate Schema
+                          </>
+                        )}
+                      </button>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

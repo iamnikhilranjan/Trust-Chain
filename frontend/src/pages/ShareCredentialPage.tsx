@@ -2,7 +2,8 @@
    ShareCredentialPage — Authenticated holders create a Verifiable Presentation
    ═══════════════════════════════════════════════════════════════════════════ */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Share2, Copy, Check, ShieldCheck, Clock, FileText, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { createVp } from '../services/api';
@@ -28,14 +29,22 @@ const EXPIRY_OPTIONS = [
 ];
 
 export default function ShareCredentialPage() {
+  const [searchParams] = useSearchParams();
   const { address, isAuthenticated, signMessage } = useAuth();
-  const [tokenId, setTokenId] = useState('');
+  const [tokenId, setTokenId] = useState(searchParams.get('tokenId') || '');
   const [purpose, setPurpose] = useState('job_application');
   const [expiryHours, setExpiryHours] = useState(24);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateVpResponse | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const paramId = searchParams.get('tokenId');
+    if (paramId) {
+      setTokenId(paramId);
+    }
+  }, [searchParams]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

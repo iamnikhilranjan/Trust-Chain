@@ -20,34 +20,38 @@ export default function Navbar() {
   const { logout, error: authError, isAdmin, isManager, isAuditor, isAuthenticated } = useAuth();
   const [connectError, setConnectError] = useState<string | null>(null);
 
+  const identityChildren = [
+    { label: 'Lookup DID', path: '/identity' },
+    ...(isAdmin ? [{ label: 'Register Identity (Admin)', path: '/identity/register' }] : []),
+  ];
+
+  const assetsChildren = [
+    { label: 'Browse Assets', path: '/assets' },
+    ...(isManager || isAdmin ? [{ label: 'Issue Asset (Manager)', path: '/assets/issue' }] : []),
+    { label: 'Share Credential (VP)', path: '/share' },
+    { label: 'Verify Asset', path: '/verify' },
+  ];
+
+  const schemasChildren = [
+    { label: 'Browse Schemas', path: '/schemas' },
+    ...(isManager || isAdmin ? [{ label: 'Register Schema (Manager)', path: '/schemas/create' }] : []),
+  ];
+
   const navItems: NavItem[] = [
     { label: 'Home', path: '/' },
-    {
-      label: 'Identity',
-      children: [
-        { label: 'Lookup DID', path: '/identity' },
-        { label: 'Register Identity', path: '/identity/register' },
-      ],
-    },
+    identityChildren.length > 1
+      ? { label: 'Identity', children: identityChildren }
+      : { label: 'Identity', path: '/identity' },
     {
       label: 'Assets',
-      children: [
-        { label: 'Browse Assets', path: '/assets' },
-        { label: 'Issue Asset', path: '/assets/issue' },
-        { label: 'Share Credential (VP)', path: '/share' },
-        { label: 'Verify Asset', path: '/verify' },
-      ],
+      children: assetsChildren,
     },
-    {
-      label: 'Schemas',
-      children: [
-        { label: 'Browse Schemas', path: '/schemas' },
-        { label: 'Register Schema', path: '/schemas/create' },
-      ],
-    },
+    schemasChildren.length > 1
+      ? { label: 'Schemas', children: schemasChildren }
+      : { label: 'Schemas', path: '/schemas' },
     ...(isAuthenticated ? [{ label: 'Share', path: '/share' }] : []),
     { label: 'Verify', path: '/verify' },
-    { label: 'Audit', path: '/audit' },
+    ...(isAdmin || isManager || isAuditor ? [{ label: 'Audit', path: '/audit' }] : []),
     { label: 'Dashboard', path: '/dashboard' },
   ];
 

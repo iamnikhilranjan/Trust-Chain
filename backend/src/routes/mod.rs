@@ -53,6 +53,8 @@ pub fn create_router(state: AppState) -> Router {
         .route("/api/schemas", get(schemas::list_standard_schemas))
         .route("/api/schemas/:schema_id", get(schemas::get_schema))
         // Assets
+        .route("/api/assets", get(assets::list_all_assets))
+        .route("/api/assets/my", get(assets::get_my_assets))
         .route("/api/assets/verify", post(assets::verify_asset))
         .route("/api/assets/:token_id", get(assets::get_asset))
         // Audit
