@@ -5,6 +5,9 @@
 
 :root {
   /* ── Primary Colors (BEL Blue Palette) ────────────────────────────────── */
+  --primary: #2b5797;
+  --primary-hover: #1e3f6f;
+  --primary-dark: #142d52;
   --primary-50: #e8f0fe;
   --primary-100: #c5d9f8;
   --primary-200: #9ebef2;

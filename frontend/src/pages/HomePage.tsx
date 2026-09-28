@@ -241,10 +241,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ═══ Flash News Ticker ══════════════════════════════════════════ */}
-      <section className="flash-news" aria-label="Flash news">
+      {/* ═══ Recent Activity Ticker ══════════════════════════════════════ */}
+      <section className="flash-news" aria-label="Recent activity">
         <div className="flash-news-label">
-          <Zap size={14} /> Flash News
+          <TrendingUp size={14} /> Recent Activity
         </div>
         <div className="flash-news-ticker">
           <div className="flash-news-track">
