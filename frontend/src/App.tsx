@@ -12,6 +12,7 @@ import VerifyAssetPage from './pages/VerifyAssetPage';
 import ShareCredentialPage from './pages/ShareCredentialPage';
 import SchemasPage from './pages/SchemasPage';
 import AuditPage from './pages/AuditPage';
+import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
 import './App.css';
 
@@ -36,6 +37,7 @@ function App() {
             <Route path="/schemas" element={<SchemasPage />} />
             <Route path="/schemas/create" element={<SchemasPage createMode={true} />} />
             <Route path="/audit" element={<AuditPage />} />
+            <Route path="/admin" element={<AdminPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>

@@ -41,11 +41,15 @@ pub async fn get_my_assets(
         .map(AssetRecord::from)
         .collect();
 
-    // 2. Query on-chain for real-time live data
+    // 2. Query on-chain for real-time live data and enrich incomplete records
     if let Ok(count) = state.client.get_asset_count().await {
         for token_id in 1..=count {
-            // Avoid duplicate if already found in DB
-            if my_assets.iter().any(|a| a.token_id == token_id) {
+            if let Some(existing) = my_assets.iter_mut().find(|a| a.token_id == token_id) {
+                if existing.asset_type.is_empty() || existing.schema_id.is_empty() {
+                    if let Ok(onchain_asset) = state.client.get_asset(token_id).await {
+                        *existing = onchain_asset;
+                    }
+                }
                 continue;
             }
             if let Ok(asset) = state.client.get_asset(token_id).await {

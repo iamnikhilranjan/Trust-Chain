@@ -52,6 +52,7 @@ export default function Navbar() {
     ...(isAuthenticated ? [{ label: 'Share', path: '/share' }] : []),
     { label: 'Verify', path: '/verify' },
     ...(isAdmin || isManager || isAuditor ? [{ label: 'Audit', path: '/audit' }] : []),
+    ...(isAdmin ? [{ label: '⚙ Admin', path: '/admin' }] : []),
     { label: 'Dashboard', path: '/dashboard' },
   ];
 

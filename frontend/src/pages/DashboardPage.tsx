@@ -1,7 +1,3 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   DashboardPage — Authenticated user dashboard with Assets & VP actions
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -19,8 +15,8 @@ import {
   Award,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { getMyIdentity, getMyAssets, listMyVps, revokeVp } from '../services/api';
-import type { MyIdentityResponse, AssetRecord } from '../types';
+import { getMyIdentity, getMyAssets, listMyVps, revokeVp, listSchemas, getAsset } from '../services/api';
+import type { MyIdentityResponse, AssetRecord, SchemaRecord } from '../types';
 import './DashboardPage.css';
 
 interface VpRecord {
@@ -36,10 +32,15 @@ export default function DashboardPage() {
   const { isAuthenticated, address, did, isAdmin, isManager, isAuditor, login, loading: authLoading } = useAuth();
   const [identity, setIdentity] = useState<MyIdentityResponse | null>(null);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
+  const [schemas, setSchemas] = useState<SchemaRecord[]>([]);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [vps, setVps] = useState<VpRecord[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    listSchemas().then(setSchemas).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (address) {
@@ -47,7 +48,27 @@ export default function DashboardPage() {
 
       setAssetsLoading(true);
       getMyAssets(address)
-        .then(setAssets)
+        .then(async (userAssets) => {
+          setAssets(userAssets);
+          // Auto-enrich any asset that has missing asset_type or schema_id with direct on-chain read
+          const needsEnrichment = userAssets.some(a => !a.asset_type || !a.schema_id);
+          if (needsEnrichment) {
+            const enriched = await Promise.all(
+              userAssets.map(async (a) => {
+                if (!a.asset_type || !a.schema_id) {
+                  try {
+                    const full = await getAsset(a.token_id);
+                    return { ...a, ...full };
+                  } catch {
+                    return a;
+                  }
+                }
+                return a;
+              })
+            );
+            setAssets(enriched);
+          }
+        })
         .catch(() => setAssets([]))
         .finally(() => setAssetsLoading(false));
 
@@ -56,6 +77,24 @@ export default function DashboardPage() {
         .catch(() => setVps([]));
     }
   }, [address]);
+
+  const getAssetName = (asset: AssetRecord) => {
+    if (asset.schema_id) {
+      const match = schemas.find(
+        (s) => s.schema_id.trim().toLowerCase() === asset.schema_id.trim().toLowerCase()
+      );
+      if (match?.name && match.name.trim()) {
+        return match.name;
+      }
+    }
+    if (asset.asset_type && asset.asset_type.trim() && asset.asset_type.toLowerCase() !== 'none') {
+      return asset.asset_type.replace(/_/g, ' ');
+    }
+    if (asset.schema_id && asset.schema_id.trim()) {
+      return asset.schema_id.replace(/_/g, ' ');
+    }
+    return `Credential #${asset.token_id}`;
+  };
 
   const handleCopyLink = async (vpId: string) => {
     // In our app, verify link is /verify/vp with vpId or token
@@ -206,9 +245,17 @@ export default function DashboardPage() {
                     </span>
                   </div>
 
-                  <h4 className="dashboard-asset-title">{asset.asset_type.replace(/_/g, ' ')}</h4>
+                  <h4 className="dashboard-asset-title">
+                    {asset.asset_type && asset.asset_type.toLowerCase() !== 'none'
+                      ? asset.asset_type.replace(/_/g, ' ')
+                      : asset.schema_id
+                      ? asset.schema_id.replace(/_/g, ' ')
+                      : `Token #${asset.token_id}`}
+                  </h4>
                   <div className="dashboard-asset-schema">
-                    <span className="dashboard-schema-tag">{asset.schema_id}</span>
+                    <span className="dashboard-schema-tag">
+                      Schema: {asset.schema_id || 'Custom'}
+                    </span>
                   </div>
 
                   <div className="dashboard-asset-meta">
@@ -259,7 +306,7 @@ export default function DashboardPage() {
                 <table className="table">
                   <thead>
                     <tr>
-                      <th>Token ID</th>
+                      <th>Credential (Asset / Schema)</th>
                       <th>Purpose</th>
                       <th>Issued At</th>
                       <th>Expires At</th>
@@ -268,49 +315,59 @@ export default function DashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {vps.map((vp) => (
-                      <tr key={vp.vp_id}>
-                        <td><strong>#{vp.token_id}</strong></td>
-                        <td style={{ textTransform: 'capitalize' }}>{vp.purpose.replace(/_/g, ' ')}</td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>
-                          {vp.issued_at ? new Date(vp.issued_at * 1000).toLocaleString() : '—'}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>
-                          {vp.expires_at ? new Date(vp.expires_at * 1000).toLocaleString() : '—'}
-                        </td>
-                        <td>
-                          <span className={`badge ${vp.status === 'active' ? 'badge-active' : 'badge-revoked'}`}>
-                            {vp.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          <div style={{ display: 'inline-flex', gap: 6 }}>
-                            {vp.status === 'active' && (
-                              <>
-                                <button
-                                  className="btn btn-secondary btn-sm"
-                                  onClick={() => handleCopyLink(vp.vp_id)}
-                                  title="Copy share link"
-                                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
-                                >
-                                  {copiedId === vp.vp_id ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
-                                  {copiedId === vp.vp_id ? 'Copied' : 'Link'}
-                                </button>
-                                <button
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => handleRevokeVp(vp.vp_id)}
-                                  disabled={revokingId === vp.vp_id}
-                                  title="Revoke presentation link"
-                                  style={{ padding: '4px 8px', fontSize: '0.78rem' }}
-                                >
-                                  {revokingId === vp.vp_id ? 'Revoking...' : 'Revoke'}
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {vps.map((vp) => {
+                      const asset = assets.find(a => a.token_id === vp.token_id);
+                      const assetLabel = asset ? getAssetName(asset) : `Token #${vp.token_id}`;
+                      const schemaLabel = asset?.schema_id;
+                      return (
+                        <tr key={vp.vp_id}>
+                          <td>
+                            <div style={{ fontWeight: 600, color: 'var(--gray-900)' }}>{assetLabel}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                              {schemaLabel ? `Schema: ${schemaLabel} • ` : ''}Token #{vp.token_id}
+                            </div>
+                          </td>
+                          <td style={{ textTransform: 'capitalize' }}>{vp.purpose.replace(/_/g, ' ')}</td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>
+                            {vp.issued_at ? new Date(vp.issued_at * 1000).toLocaleString() : '—'}
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--gray-600)' }}>
+                            {vp.expires_at ? new Date(vp.expires_at * 1000).toLocaleString() : '—'}
+                          </td>
+                          <td>
+                            <span className={`badge ${vp.status === 'active' ? 'badge-active' : 'badge-revoked'}`}>
+                              {vp.status}
+                            </span>
+                          </td>
+                          <td style={{ textAlign: 'right' }}>
+                            <div style={{ display: 'inline-flex', gap: 6 }}>
+                              {vp.status === 'active' && (
+                                <>
+                                  <button
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => handleCopyLink(vp.vp_id)}
+                                    title="Copy share link"
+                                    style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                  >
+                                    {copiedId === vp.vp_id ? <Check size={13} color="var(--success)" /> : <Copy size={13} />}
+                                    {copiedId === vp.vp_id ? 'Copied' : 'Link'}
+                                  </button>
+                                  <button
+                                    className="btn btn-danger btn-sm"
+                                    onClick={() => handleRevokeVp(vp.vp_id)}
+                                    disabled={revokingId === vp.vp_id}
+                                    title="Revoke presentation link"
+                                    style={{ padding: '4px 8px', fontSize: '0.78rem' }}
+                                  >
+                                    {revokingId === vp.vp_id ? 'Revoking...' : 'Revoke'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

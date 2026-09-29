@@ -1,13 +1,9 @@
-/* ═══════════════════════════════════════════════════════════════════════════
-   ShareCredentialPage — Authenticated holders create a Verifiable Presentation
-   ═══════════════════════════════════════════════════════════════════════════ */
-
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Share2, Copy, Check, ShieldCheck, Clock, FileText, ExternalLink } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { createVp } from '../services/api';
-import type { CreateVpResponse } from '../types';
+import { createVp, getMyAssets, listSchemas } from '../services/api';
+import type { CreateVpResponse, AssetRecord, SchemaRecord } from '../types';
 import './FormPage.css';
 import './ShareCredentialPage.css';
 
@@ -34,17 +30,35 @@ export default function ShareCredentialPage() {
   const [tokenId, setTokenId] = useState(searchParams.get('tokenId') || '');
   const [purpose, setPurpose] = useState('job_application');
   const [expiryHours, setExpiryHours] = useState(24);
+  const [myAssets, setMyAssets] = useState<AssetRecord[]>([]);
+  const [schemas, setSchemas] = useState<SchemaRecord[]>([]);
+  const [loadingAssets, setLoadingAssets] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CreateVpResponse | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    const paramId = searchParams.get('tokenId');
-    if (paramId) {
-      setTokenId(paramId);
+    listSchemas().then(setSchemas).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (address) {
+      setLoadingAssets(true);
+      getMyAssets(address)
+        .then((assets) => {
+          setMyAssets(assets);
+          const paramId = searchParams.get('tokenId');
+          if (paramId) {
+            setTokenId(paramId);
+          } else if (assets.length > 0 && !tokenId) {
+            setTokenId(String(assets[0].token_id));
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingAssets(false));
     }
-  }, [searchParams]);
+  }, [address, searchParams]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,16 +155,46 @@ export default function ShareCredentialPage() {
             </div>
 
             <div className="form-group">
-              <label className="form-label">Token ID (Credential) *</label>
-              <input
-                type="number"
-                className="form-input"
-                placeholder="e.g. 1"
-                value={tokenId}
-                onChange={e => setTokenId(e.target.value)}
-                required
-                min="1"
-              />
+              <label className="form-label">Select Credential (Asset Type / Schema) *</label>
+              {loadingAssets ? (
+                <div style={{ fontSize: '0.85rem', color: 'var(--gray-500)', padding: '8px 0' }}>
+                  Loading your credentials...
+                </div>
+              ) : myAssets.length > 0 ? (
+                <select
+                  className="form-input"
+                  value={tokenId}
+                  onChange={e => setTokenId(e.target.value)}
+                  required
+                >
+                  <option value="">-- Choose a Credential to Share --</option>
+                  {myAssets.map((asset) => {
+                    const schemaMatch = schemas.find(
+                      s => s.schema_id.trim().toLowerCase() === asset.schema_id.trim().toLowerCase()
+                    );
+                    const displayName =
+                      (asset.asset_type && asset.asset_type.toLowerCase() !== 'none')
+                        ? asset.asset_type.replace(/_/g, ' ')
+                        : schemaMatch?.name || asset.schema_id || `Token #${asset.token_id}`;
+
+                    return (
+                      <option key={asset.token_id} value={asset.token_id}>
+                        {displayName} (Schema: {asset.schema_id} • Token #{asset.token_id})
+                      </option>
+                    );
+                  })}
+                </select>
+              ) : (
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="e.g. 1"
+                  value={tokenId}
+                  onChange={e => setTokenId(e.target.value)}
+                  required
+                  min="1"
+                />
+              )}
             </div>
 
             <div className="form-group">
