@@ -7,7 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Html5Qrcode } from 'html5-qrcode';
 import {
   ShieldCheck, CheckCircle, XCircle, Search, Share2, AlertTriangle,
-  QrCode, Key, Camera, Upload, RefreshCw, Copy, Check, ExternalLink,
+  QrCode, Key, Camera, Upload, RefreshCw,
 } from 'lucide-react';
 import { verifyAsset, verifyVp } from '../services/api';
 import type { VerifyAssetResult, VerifyVpResult } from '../types';

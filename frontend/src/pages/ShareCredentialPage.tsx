@@ -117,7 +117,7 @@ export default function ShareCredentialPage() {
     const pngUrl = canvas.toDataURL('image/png');
     const downloadLink = document.createElement('a');
     downloadLink.href = pngUrl;
-    downloadLink.download = `trustchain-vp-qr-${result?.token_id || 'credential'}.png`;
+    downloadLink.download = `trustchain-vp-qr-${result?.vp_id || tokenId || 'credential'}.png`;
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);
