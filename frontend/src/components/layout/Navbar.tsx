@@ -100,7 +100,7 @@ export default function Navbar() {
     if (isAdmin) return 'Admin';
     if (isManager) return 'Manager';
     if (isAuditor) return 'Auditor';
-    return 'User';
+    return 'No Role';
   };
 
   return (

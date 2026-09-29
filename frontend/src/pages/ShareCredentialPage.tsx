@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Share2, Copy, Check, ShieldCheck, Clock, FileText, ExternalLink } from 'lucide-react';
+import { QRCodeCanvas } from 'qrcode.react';
+import { Share2, Copy, Check, ShieldCheck, Clock, FileText, ExternalLink, Download, QrCode } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { createVp, getMyAssets, listSchemas } from '../services/api';
 import type { CreateVpResponse, AssetRecord, SchemaRecord } from '../types';
@@ -108,6 +109,18 @@ export default function ShareCredentialPage() {
     await navigator.clipboard.writeText(result.vp_token);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const downloadQr = () => {
+    const canvas = document.getElementById('share-vp-qr-canvas') as HTMLCanvasElement;
+    if (!canvas) return;
+    const pngUrl = canvas.toDataURL('image/png');
+    const downloadLink = document.createElement('a');
+    downloadLink.href = pngUrl;
+    downloadLink.download = `trustchain-vp-qr-${result?.token_id || 'credential'}.png`;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
   };
 
   const verifyUrl = result
@@ -256,7 +269,36 @@ export default function ShareCredentialPage() {
 
             {/* Share options */}
             <div className="vp-share-section">
-              <p className="vp-share-label">
+              <div className="vp-qr-box-share">
+                <div className="vp-qr-canvas-wrapper">
+                  <QRCodeCanvas
+                    id="share-vp-qr-canvas"
+                    value={verifyUrl}
+                    size={160}
+                    bgColor="#ffffff"
+                    fgColor="#1a2744"
+                    level="H"
+                    includeMargin
+                  />
+                  <div className="vp-qr-badge">
+                    <ShieldCheck size={12} /> TrustChain QR
+                  </div>
+                </div>
+
+                <div className="vp-qr-details">
+                  <p className="vp-share-label">
+                    <QrCode size={14} /> Shareable QR Code
+                  </p>
+                  <p className="vp-qr-desc">
+                    Scan this QR code with camera in the Verify section to verify instantly without copying tokens.
+                  </p>
+                  <button className="btn btn-primary" onClick={downloadQr}>
+                    <Download size={16} /> Download QR Code
+                  </button>
+                </div>
+              </div>
+
+              <p className="vp-share-label" style={{ marginTop: 'var(--space-5)' }}>
                 <ExternalLink size={14} /> Shareable Verification Link
               </p>
               <div className="vp-share-url">{verifyUrl}</div>
@@ -275,7 +317,7 @@ export default function ShareCredentialPage() {
                   href={verifyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="btn btn-primary"
+                  className="btn btn-outline"
                 >
                   <ExternalLink size={16} /> Open Verify Page
                 </a>
