@@ -124,7 +124,7 @@ export default function ShareCredentialPage() {
   };
 
   const verifyUrl = result
-    ? `${window.location.origin}/verify/vp?token=${encodeURIComponent(result.vp_token)}`
+    ? `${window.location.origin}/verify?vpid=${encodeURIComponent(result.vp_id)}`
     : '';
 
   if (!isAuthenticated) {
@@ -274,10 +274,10 @@ export default function ShareCredentialPage() {
                   <QRCodeCanvas
                     id="share-vp-qr-canvas"
                     value={verifyUrl}
-                    size={160}
+                    size={200}
                     bgColor="#ffffff"
                     fgColor="#1a2744"
-                    level="H"
+                    level="M"
                     includeMargin
                   />
                   <div className="vp-qr-badge">

@@ -9,7 +9,7 @@ import {
   ShieldCheck, CheckCircle, XCircle, Search, Share2, AlertTriangle,
   QrCode, Key, Camera, Upload, RefreshCw,
 } from 'lucide-react';
-import { verifyAsset, verifyVp } from '../services/api';
+import { verifyAsset, verifyVp, resolveVp } from '../services/api';
 import type { VerifyAssetResult, VerifyVpResult } from '../types';
 import './FormPage.css';
 import './ShareCredentialPage.css';
@@ -40,10 +40,14 @@ export default function VerifyAssetPage() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
 
-  /* Auto-populate JWT token from URL ?token= param */
+  /* Auto-populate VP from URL ?vpid= or ?token= param */
   useEffect(() => {
+    const vpid = searchParams.get('vpid');
     const token = searchParams.get('token');
-    if (token) {
+    if (vpid) {
+      setMode('qr');
+      handleVpIdVerify(vpid);
+    } else if (token) {
       setVpToken(token);
       setScannedToken(token);
       setMode('qr');
@@ -62,25 +66,32 @@ export default function VerifyAssetPage() {
     };
   }, []);
 
-  /* Helper to extract token from QR payload (URL or raw token) */
-  const parseTokenFromQr = (scannedText: string): string => {
+  /* Helper to extract vpid or token from QR payload */
+  const parseQrPayload = (scannedText: string): { vpid?: string; token?: string } => {
     const text = scannedText.trim();
     try {
       if (text.startsWith('http://') || text.startsWith('https://')) {
         const url = new URL(text);
+        const vpid = url.searchParams.get('vpid');
+        if (vpid) return { vpid };
         const token = url.searchParams.get('token');
-        if (token) return token;
+        if (token) return { token };
       }
     } catch (_e) {
       // ignore URL parse errors
     }
 
-    const match = text.match(/[?&]token=([^&]+)/);
-    if (match && match[1]) {
-      return decodeURIComponent(match[1]);
+    const vpidMatch = text.match(/[?&]vpid=([^&]+)/);
+    if (vpidMatch && vpidMatch[1]) return { vpid: decodeURIComponent(vpidMatch[1]) };
+
+    const tokenMatch = text.match(/[?&]token=([^&]+)/);
+    if (tokenMatch && tokenMatch[1]) return { token: decodeURIComponent(tokenMatch[1]) };
+
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+      return { vpid: text };
     }
 
-    return text;
+    return { token: text };
   };
 
   /* ── Handlers ──────────────────────────────────── */
@@ -92,6 +103,20 @@ export default function VerifyAssetPage() {
       setVpResult(await verifyVp({ vp_token: token.trim() }));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'VP verification failed');
+    } finally { setLoading(false); }
+  };
+
+  const handleVpIdVerify = async (vpid: string) => {
+    setLoading(true); setError(null); setVpResult(null); setQrScanError(null);
+    try {
+      const res = await resolveVp(vpid);
+      setVpToken(res.vp_token);
+      setScannedToken(res.vp_token);
+      setVpResult(await verifyVp({ vp_token: res.vp_token }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'VP presentation not found or expired';
+      setError(msg);
+      setQrScanError(msg);
     } finally { setLoading(false); }
   };
 
@@ -159,10 +184,14 @@ export default function VerifyAssetPage() {
 
   const handleQrCodeScanned = async (decodedText: string) => {
     await stopCameraScanner();
-    const token = parseTokenFromQr(decodedText);
-    setScannedToken(token);
-    setVpToken(token);
-    handleVpVerify(token);
+    const payload = parseQrPayload(decodedText);
+    if (payload.vpid) {
+      handleVpIdVerify(payload.vpid);
+    } else if (payload.token) {
+      setScannedToken(payload.token);
+      setVpToken(payload.token);
+      handleVpVerify(payload.token);
+    }
   };
 
   const handleQrFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -410,6 +410,34 @@ pub async fn verify_vp(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/vp/resolve/:vp_id — Public endpoint to fetch stored VP token by ID
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn resolve_vp(
+    State(state): State<AppState>,
+    Path(vp_id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use serde_json::json;
+
+    let row = sqlx::query(
+        "SELECT vp_token FROM verifiable_presentations WHERE vp_id = $1 AND status = 'active'",
+    )
+    .bind(&vp_id)
+    .fetch_optional(&state.db)
+    .await
+    .map_err(|e| AppError::DatabaseError(format!("DB lookup failed: {}", e)))?;
+
+    match row {
+        Some(r) => {
+            use sqlx::Row;
+            let token: String = r.get("vp_token");
+            Ok(Json(json!({ "vp_id": vp_id, "vp_token": token })))
+        }
+        None => Err(AppError::NotFound("Verifiable presentation not found or expired".to_string())),
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/vp/:vp_id/revoke — Holder revokes a VP early
 // ─────────────────────────────────────────────────────────────────────────────
 

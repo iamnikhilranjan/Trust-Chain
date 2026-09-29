@@ -298,6 +298,10 @@ export async function verifyVp(payload: VerifyVpRequest): Promise<VerifyVpResult
   });
 }
 
+export async function resolveVp(vpId: string): Promise<{ vp_id: string; vp_token: string }> {
+  return request<{ vp_id: string; vp_token: string }>(`/vp/resolve/${encodeURIComponent(vpId)}`);
+}
+
 export async function listMyVps(): Promise<{ presentations: VpListItem[] }> {
   return request<{ presentations: VpListItem[] }>('/vp/my');
 }
