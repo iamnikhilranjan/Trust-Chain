@@ -29,7 +29,7 @@ interface VpRecord {
 }
 
 export default function DashboardPage() {
-  const { isAuthenticated, address, did, isAdmin, isManager, isAuditor, login, loading: authLoading } = useAuth();
+  const { isAuthenticated, address, isAdmin, isManager, isAuditor, login, loading: authLoading } = useAuth();
   const [identity, setIdentity] = useState<MyIdentityResponse | null>(null);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [schemas, setSchemas] = useState<SchemaRecord[]>([]);
@@ -171,7 +171,16 @@ export default function DashboardPage() {
           <div className="dashboard-identity-details">
             <div className="dashboard-detail">
               <span className="dashboard-detail-label">Decentralized Identifier (DID)</span>
-              <span className="dashboard-detail-value mono">{did || 'Not registered'}</span>
+              {identity?.found && identity?.identity?.did ? (
+                <span className="dashboard-detail-value mono">{identity.identity.did}</span>
+              ) : (
+                <span className="dashboard-detail-value" style={{ color: 'var(--gray-500)', display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span>Not Registered</span>
+                  <Link to="/identity" style={{ fontSize: '0.8rem', color: 'var(--primary-600)', textDecoration: 'underline', fontWeight: 500 }}>
+                    (Register Identity)
+                  </Link>
+                </span>
+              )}
             </div>
             <div className="dashboard-detail">
               <span className="dashboard-detail-label">Access Roles</span>
@@ -180,7 +189,9 @@ export default function DashboardPage() {
                 {isManager && <span className="badge badge-manager">Manager</span>}
                 {isAuditor && <span className="badge badge-auditor">Auditor</span>}
                 {!isAdmin && !isManager && !isAuditor && (
-                  <span className="badge" style={{ background: 'var(--primary-50)', color: 'var(--primary-700)' }}>User</span>
+                  <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)', border: '1px solid var(--gray-300)' }}>
+                    No Role
+                  </span>
                 )}
               </div>
             </div>
