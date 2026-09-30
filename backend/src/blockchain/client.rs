@@ -191,6 +191,12 @@ impl BlockchainClient {
             _ => "UNKNOWN",
         };
 
+        let pending_controller = if id.pendingController != Address::ZERO {
+            format!("{:#x}", id.pendingController)
+        } else {
+            String::new()
+        };
+
         Ok(IdentityRecord {
             did: id.did,
             controller: format!("{:#x}", id.controller),
@@ -198,6 +204,7 @@ impl BlockchainClient {
             public_key: format!("0x{}", hex::encode(id.publicKey)),
             metadata_uri: id.metadataUri,
             is_active: id.status == 0,
+            pending_controller,
         })
     }
 

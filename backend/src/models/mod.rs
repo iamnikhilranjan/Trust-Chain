@@ -72,6 +72,8 @@ pub struct IdentityRecord {
     pub public_key: String,
     pub metadata_uri: String,
     pub is_active: bool,
+    #[serde(default)]
+    pub pending_controller: String,
 }
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
@@ -133,6 +135,17 @@ pub struct RegisterIdentityRequest {
     pub controller: Option<String>,
     pub metadata_uri: Option<String>,
     pub public_key: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ProposeControllerRequest {
+    pub did: String,
+    pub new_controller: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AcceptControllerRequest {
+    pub did: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

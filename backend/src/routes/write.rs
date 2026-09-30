@@ -24,7 +24,8 @@ use crate::{
     error::AppError,
     middleware::auth::AuthenticatedUser,
     models::{
-        IssueAssetRequest, RegisterIdentityRequest, RegisterSchemaRequest, RevokeAssetRequest,
+        AcceptControllerRequest, IssueAssetRequest, ProposeControllerRequest,
+        RegisterIdentityRequest, RegisterSchemaRequest, RevokeAssetRequest,
         TransferAssetRequest, TxResponse, UpdateAssetStatusRequest,
     },
     AppState,
@@ -447,5 +448,78 @@ pub async fn sync_nft_owner(
         success: true,
         tx_hash,
         message: format!("NFT owner synced for token #{}", token_id),
+    }))
+}
+
+/// POST /api/identity/propose-controller
+/// Step 1 of DID transfer: Proposes a new controller for a DID. Caller must be current controller or Admin.
+pub async fn propose_controller(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthenticatedUser>,
+    Json(payload): Json<ProposeControllerRequest>,
+) -> Result<Json<TxResponse>, AppError> {
+    if payload.did.trim().is_empty() {
+        return Err(AppError::BadRequest("DID cannot be empty".to_string()));
+    }
+    let new_controller: Address = payload.new_controller
+        .parse()
+        .map_err(|_| AppError::BadRequest("Invalid new_controller address".to_string()))?;
+
+    if new_controller == Address::ZERO {
+        return Err(AppError::BadRequest("New controller cannot be the zero address".to_string()));
+    }
+
+    let provider = build_provider!(state);
+    let registry = IIdentityRegistryWrite::new(state.client.identity_registry_addr, &provider);
+
+    let receipt = registry
+        .proposeController(payload.did.clone(), new_controller)
+        .send()
+        .await
+        .map_err(|e| AppError::BlockchainError(format!("proposeController failed: {}", e)))?
+        .get_receipt()
+        .await
+        .map_err(|e| AppError::BlockchainError(format!("Tx receipt failed: {}", e)))?;
+
+    let tx_hash = format!("{:?}", receipt.transaction_hash);
+    tracing::info!("Proposed controller for {}: {} tx={}", payload.did, payload.new_controller, tx_hash);
+
+    Ok(Json(TxResponse {
+        success: true,
+        tx_hash,
+        message: format!("Proposed controller for DID '{}' to {}", payload.did, payload.new_controller),
+    }))
+}
+
+/// POST /api/identity/accept-controller
+/// Step 2 of DID transfer: Finalizes DID transfer. Caller must be the proposed pendingController.
+pub async fn accept_controller(
+    State(state): State<AppState>,
+    Extension(_user): Extension<AuthenticatedUser>,
+    Json(payload): Json<AcceptControllerRequest>,
+) -> Result<Json<TxResponse>, AppError> {
+    if payload.did.trim().is_empty() {
+        return Err(AppError::BadRequest("DID cannot be empty".to_string()));
+    }
+
+    let provider = build_provider!(state);
+    let registry = IIdentityRegistryWrite::new(state.client.identity_registry_addr, &provider);
+
+    let receipt = registry
+        .acceptController(payload.did.clone())
+        .send()
+        .await
+        .map_err(|e| AppError::BlockchainError(format!("acceptController failed: {}", e)))?
+        .get_receipt()
+        .await
+        .map_err(|e| AppError::BlockchainError(format!("Tx receipt failed: {}", e)))?;
+
+    let tx_hash = format!("{:?}", receipt.transaction_hash);
+    tracing::info!("Accepted controller for {} tx={}", payload.did, tx_hash);
+
+    Ok(Json(TxResponse {
+        success: true,
+        tx_hash,
+        message: format!("DID '{}' controller transfer accepted successfully", payload.did),
     }))
 }

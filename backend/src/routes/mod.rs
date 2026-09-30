@@ -25,6 +25,8 @@ pub fn create_router(state: AppState) -> Router {
 
     let write_routes = Router::new()
         .route("/api/identity/register", post(write::register_identity))
+        .route("/api/identity/propose-controller", post(write::propose_controller))
+        .route("/api/identity/accept-controller", post(write::accept_controller))
         .route("/api/schemas", post(write::register_schema))
         .route("/api/assets/issue", post(write::issue_asset))
         .route("/api/assets/:token_id/transfer", post(write::transfer_asset))

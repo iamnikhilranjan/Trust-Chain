@@ -58,6 +58,23 @@ export const IDENTITY_REGISTRY_ABI = [
     ],
     outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
   },
+  {
+    type: 'function',
+    name: 'proposeController',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { internalType: 'string', name: 'did', type: 'string' },
+      { internalType: 'address', name: 'newController', type: 'address' },
+    ],
+    outputs: [],
+  },
+  {
+    type: 'function',
+    name: 'acceptController',
+    stateMutability: 'nonpayable',
+    inputs: [{ internalType: 'string', name: 'did', type: 'string' }],
+    outputs: [],
+  },
 ] as const;
 
 export const ASSET_REGISTRY_ABI = [

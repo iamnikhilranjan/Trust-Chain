@@ -135,6 +135,20 @@ export async function registerIdentity(payload: RegisterIdentityRequest): Promis
   });
 }
 
+export async function proposeController(did: string, newController: string): Promise<TxResponse> {
+  return request<TxResponse>('/identity/propose-controller', {
+    method: 'POST',
+    body: JSON.stringify({ did, new_controller: newController }),
+  });
+}
+
+export async function acceptController(did: string): Promise<TxResponse> {
+  return request<TxResponse>('/identity/accept-controller', {
+    method: 'POST',
+    body: JSON.stringify({ did }),
+  });
+}
+
 export interface SyncIdentityPayload {
   did: string;
   controller: string;

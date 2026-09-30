@@ -32,6 +32,7 @@ impl From<IdentityRow> for IdentityRecord {
             public_key: String::new(),
             metadata_uri: row.metadata_uri,
             is_active: row.status == 0,
+            pending_controller: String::new(),
         }
     }
 }

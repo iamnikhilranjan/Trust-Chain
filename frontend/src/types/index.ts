@@ -42,6 +42,7 @@ export interface IdentityRecord {
   public_key: string;
   metadata_uri: string;
   is_active: boolean;
+  pending_controller?: string;
 }
 
 export interface MyIdentityResponse {
@@ -108,6 +109,15 @@ export interface RegisterIdentityRequest {
   controller: string;
   metadata_uri?: string;
   public_key?: string;
+}
+
+export interface ProposeControllerRequest {
+  did: string;
+  new_controller: string;
+}
+
+export interface AcceptControllerRequest {
+  did: string;
 }
 
 export interface RegisterSchemaRequest {
