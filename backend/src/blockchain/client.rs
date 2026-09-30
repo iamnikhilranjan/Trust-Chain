@@ -17,6 +17,7 @@ sol! {
         function isAdmin(address account) external view returns (bool);
         function isManager(address account) external view returns (bool);
         function isAuditor(address account) external view returns (bool);
+        function isUser(address account) external view returns (bool);
     }
 
     #[sol(rpc)]
@@ -34,6 +35,7 @@ sol! {
 
         function getIdentity(string calldata did) external view returns (Identity memory);
         function isValidController(string calldata did, address controller) external view returns (bool);
+        function getDidsByController(address controller) external view returns (string[] memory);
     }
 
     #[sol(rpc)]
@@ -160,6 +162,16 @@ impl BlockchainClient {
         Ok(res._0)
     }
 
+    pub async fn is_user(&self, account: Address) -> Result<bool, AppError> {
+        let contract = IRoleManager::new(self.role_manager_addr, self.provider.as_ref());
+        let res: IRoleManager::isUserReturn = contract
+            .isUser(account)
+            .call()
+            .await
+            .map_err(|e| AppError::BlockchainError(format!("isUser call failed: {}", e)))?;
+        Ok(res._0)
+    }
+
     // ── Identity Registry Reads ───────────────────────────────────────────────
 
     pub async fn get_identity(&self, did: &str) -> Result<IdentityRecord, AppError> {
@@ -196,6 +208,16 @@ impl BlockchainClient {
             .call()
             .await
             .map_err(|e| AppError::BlockchainError(format!("isValidController failed: {}", e)))?;
+        Ok(res._0)
+    }
+
+    pub async fn get_dids_by_controller(&self, controller: Address) -> Result<Vec<String>, AppError> {
+        let contract = IIdentityRegistry::new(self.identity_registry_addr, self.provider.as_ref());
+        let res: IIdentityRegistry::getDidsByControllerReturn = contract
+            .getDidsByController(controller)
+            .call()
+            .await
+            .map_err(|e| AppError::BlockchainError(format!("getDidsByController failed: {}", e)))?;
         Ok(res._0)
     }
 

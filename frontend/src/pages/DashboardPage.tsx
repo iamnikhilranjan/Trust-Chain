@@ -29,7 +29,7 @@ interface VpRecord {
 }
 
 export default function DashboardPage() {
-  const { isAuthenticated, address, isAdmin, isManager, isAuditor, login, loading: authLoading } = useAuth();
+  const { isAuthenticated, address, isAdmin, isManager, isAuditor, isUser, login, loading: authLoading } = useAuth();
   const [identity, setIdentity] = useState<MyIdentityResponse | null>(null);
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [schemas, setSchemas] = useState<SchemaRecord[]>([]);
@@ -188,7 +188,12 @@ export default function DashboardPage() {
                 {isAdmin && <span className="badge badge-admin">Admin</span>}
                 {isManager && <span className="badge badge-manager">Manager</span>}
                 {isAuditor && <span className="badge badge-auditor">Auditor</span>}
-                {!isAdmin && !isManager && !isAuditor && (
+                {(isUser || identity?.roles?.isUser) && !isAdmin && !isManager && !isAuditor && (
+                  <span className="badge" style={{ background: 'var(--primary-100)', color: 'var(--primary-800)', border: '1px solid var(--primary-300)' }}>
+                    USER
+                  </span>
+                )}
+                {!isAdmin && !isManager && !isAuditor && !isUser && !identity?.roles?.isUser && (
                   <span className="badge" style={{ background: 'var(--gray-100)', color: 'var(--gray-700)', border: '1px solid var(--gray-300)' }}>
                     No Role
                   </span>

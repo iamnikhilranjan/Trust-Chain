@@ -47,6 +47,7 @@ const initialState: AuthState = {
   isAdmin: false,
   isManager: false,
   isAuditor: false,
+  isUser: false,
   token: null,
 };
 
@@ -94,7 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         savedAddress &&
         savedAddress.toLowerCase() === addr.toLowerCase()
       ) {
-        let roles = { isAdmin: false, isManager: false, isAuditor: false };
+        let roles = { isAdmin: false, isManager: false, isAuditor: false, isUser: false };
         try {
           roles = JSON.parse(savedRoles || '{}');
         } catch {}
@@ -102,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isAdmin = roles.isAdmin || isKnownAdmin;
         const isManager = roles.isManager || isKnownAdmin;
         const isAuditor = roles.isAuditor || false;
+        const isUser = roles.isUser || true;
 
         const savedDid = localStorage.getItem('trustchain_did') || `did:trustchain:${addr.toLowerCase()}`;
         setState({
@@ -111,6 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           isAdmin,
           isManager,
           isAuditor,
+          isUser,
           token: savedToken,
         });
         lastAuthenticatedAddress.current = addr.toLowerCase();
@@ -123,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             isAdmin: onChain.isAdmin || isKnownAdmin,
             isManager: onChain.isManager || isKnownAdmin,
             isAuditor: onChain.isAuditor,
+            isUser: onChain.isUser,
           }));
           localStorage.setItem(
             'trustchain_roles',
@@ -130,6 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               isAdmin: onChain.isAdmin || isKnownAdmin,
               isManager: onChain.isManager || isKnownAdmin,
               isAuditor: onChain.isAuditor,
+              isUser: onChain.isUser,
             })
           );
         }).catch(() => {});
@@ -141,6 +146,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await authenticateWithWallet(addr);
       const isAdmin = result.is_admin || isKnownAdmin;
       const isManager = result.is_manager || isKnownAdmin;
+      const isAuditor = result.is_auditor;
+      const isUser = result.is_user;
 
       const newState: AuthState = {
         isAuthenticated: true,
@@ -148,7 +155,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         did: result.did,
         isAdmin,
         isManager,
-        isAuditor: result.is_auditor,
+        isAuditor,
+        isUser,
         token: result.token,
       };
 
@@ -160,7 +168,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         JSON.stringify({
           isAdmin,
           isManager,
-          isAuditor: result.is_auditor,
+          isAuditor,
+          isUser,
         })
       );
 

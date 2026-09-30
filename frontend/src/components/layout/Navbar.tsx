@@ -17,7 +17,7 @@ interface NavItem {
 }
 
 export default function Navbar() {
-  const { logout, error: authError, isAdmin, isManager, isAuditor, isAuthenticated } = useAuth();
+  const { logout, error: authError, isAdmin, isManager, isAuditor, isUser, isAuthenticated } = useAuth();
   const [connectError, setConnectError] = useState<string | null>(null);
 
   const identityChildren = [
@@ -97,10 +97,11 @@ export default function Navbar() {
     `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
   const getRoleBadge = () => {
-    if (isAdmin) return 'Admin';
-    if (isManager) return 'Manager';
-    if (isAuditor) return 'Auditor';
-    return 'No Role';
+    if (isAdmin) return 'ADMIN';
+    if (isManager) return 'MANAGER';
+    if (isAuditor) return 'AUDITOR';
+    if (isUser) return 'USER';
+    return 'NO ROLE';
   };
 
   return (

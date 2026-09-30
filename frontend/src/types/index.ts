@@ -28,6 +28,7 @@ export interface VerifySignatureResponse {
   is_admin: boolean;
   is_manager: boolean;
   is_auditor: boolean;
+  is_user: boolean;
   token: string;
   expires_in: number;
 }
@@ -50,6 +51,7 @@ export interface MyIdentityResponse {
     isAdmin: boolean;
     isManager: boolean;
     isAuditor: boolean;
+    isUser: boolean;
   };
 }
 
@@ -208,6 +210,7 @@ export interface AuthState {
   isAdmin: boolean;
   isManager: boolean;
   isAuditor: boolean;
+  isUser: boolean;
   token: string | null;
 }
 

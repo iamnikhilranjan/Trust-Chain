@@ -23,35 +23,50 @@ pub async fn get_my_identity(
     Query(params): Query<MeQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let address = params.address.to_lowercase();
-
-    // Try DB cache first for fast lookup
-    let did = db_identity::get_did_by_controller(&state.db, &address).await?;
-
-    if let Some(did) = did {
-        // Confirm on-chain (blockchain wins)
-        let identity = state.client.get_identity(&did).await?;
-        let is_admin = state.client.is_admin(address.parse().unwrap_or_default()).await.unwrap_or(false);
-        let is_manager = state.client.is_manager(address.parse().unwrap_or_default()).await.unwrap_or(false);
-        let is_auditor = state.client.is_auditor(address.parse().unwrap_or_default()).await.unwrap_or(false);
-
-        return Ok(Json(serde_json::json!({
-            "found": true,
-            "identity": identity,
-            "roles": {
-                "isAdmin": is_admin,
-                "isManager": is_manager,
-                "isAuditor": is_auditor,
-            }
-        })));
-    }
-
-    // Not found in DB — return roles only
     let addr: Address = address.parse()
         .map_err(|e| AppError::BadRequest(format!("Invalid address: {}", e)))?;
+
     let is_admin = state.client.is_admin(addr).await.unwrap_or(false);
     let is_manager = state.client.is_manager(addr).await.unwrap_or(false);
     let is_auditor = state.client.is_auditor(addr).await.unwrap_or(false);
+    let is_user = state.client.is_user(addr).await.unwrap_or(false);
 
+    // 1. Query on-chain getDidsByController (blockchain-authoritative)
+    let onchain_dids = state.client.get_dids_by_controller(addr).await.unwrap_or_default();
+    let did_opt = if !onchain_dids.is_empty() {
+        Some(onchain_dids[0].clone())
+    } else {
+        db_identity::get_did_by_controller(&state.db, &address).await?
+    };
+
+    // 2. Fetch full identity details from smart contract
+    if let Some(target_did) = did_opt {
+        if let Ok(identity) = state.client.get_identity(&target_did).await {
+            if !identity.did.is_empty() {
+                let _ = db_identity::upsert_identity(
+                    &state.db,
+                    &identity.did,
+                    &identity.controller.to_lowercase(),
+                    if identity.is_active { 0 } else { 1 },
+                    &identity.metadata_uri,
+                    None,
+                ).await;
+
+                return Ok(Json(serde_json::json!({
+                    "found": true,
+                    "identity": identity,
+                    "roles": {
+                        "isAdmin": is_admin,
+                        "isManager": is_manager,
+                        "isAuditor": is_auditor,
+                        "isUser": is_user,
+                    }
+                })));
+            }
+        }
+    }
+
+    // No DID registered on IdentityRegistry contract
     Ok(Json(serde_json::json!({
         "found": false,
         "identity": null,
@@ -59,6 +74,7 @@ pub async fn get_my_identity(
             "isAdmin": is_admin,
             "isManager": is_manager,
             "isAuditor": is_auditor,
+            "isUser": is_user,
         }
     })))
 }
@@ -81,29 +97,39 @@ pub async fn resolve_controller_identity(
         .parse()
         .map_err(|e| AppError::BadRequest(format!("Invalid address format: {}", e)))?;
 
-    // Check DB cache for fast DID resolution
-    let did_opt = db_identity::get_did_by_controller(&state.db, &address).await?;
+    let address_lc = address.to_lowercase();
 
-    let did = match did_opt {
-        Some(did) => did,
-        None => {
-            return Err(AppError::NotFound(
-                format!("No DID found for controller address {}", address)
-            ));
-        }
+    // 1. Query on-chain getDidsByController (blockchain-authoritative)
+    let onchain_dids = state.client.get_dids_by_controller(parsed_addr).await.unwrap_or_default();
+    let did_opt = if !onchain_dids.is_empty() {
+        Some(onchain_dids[0].clone())
+    } else {
+        db_identity::get_did_by_controller(&state.db, &address_lc).await?
     };
 
-    // Confirm on-chain (blockchain wins)
-    let identity = state.client.get_identity(&did).await?;
-    let is_valid = state.client.is_valid_controller(&identity.did, parsed_addr).await?;
+    if let Some(did) = did_opt {
+        if let Ok(identity) = state.client.get_identity(&did).await {
+            if !identity.did.is_empty() {
+                let is_valid = state.client.is_valid_controller(&identity.did, parsed_addr).await.unwrap_or(true);
+                if is_valid {
+                    let _ = db_identity::upsert_identity(
+                        &state.db,
+                        &identity.did,
+                        &identity.controller.to_lowercase(),
+                        if identity.is_active { 0 } else { 1 },
+                        &identity.metadata_uri,
+                        None,
+                    ).await;
 
-    if !is_valid {
-        return Err(AppError::Forbidden(
-            "Address is not an active controller of this DID".to_string(),
-        ));
+                    return Ok(Json(identity));
+                }
+            }
+        }
     }
 
-    Ok(Json(identity))
+    Err(AppError::NotFound(
+        format!("No registered DID found for controller address {}", address)
+    ))
 }
 
 #[derive(Debug, Deserialize)]

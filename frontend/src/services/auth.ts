@@ -33,13 +33,20 @@ const ROLE_MANAGER_ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [{ name: 'account', type: 'address' }],
+    name: 'isUser',
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
 ] as const;
 
-export async function getOnChainRoles(address: string): Promise<{ isAdmin: boolean; isManager: boolean; isAuditor: boolean }> {
+export async function getOnChainRoles(address: string): Promise<{ isAdmin: boolean; isManager: boolean; isAuditor: boolean; isUser: boolean }> {
   const isKnownAdmin = address.toLowerCase() === ADMIN_ADDRESS.toLowerCase();
 
   try {
-    const [isAdmin, isManager, isAuditor] = await Promise.all([
+    const [isAdmin, isManager, isAuditor, isUser] = await Promise.all([
       readContract(config, {
         address: ROLE_MANAGER_ADDRESS,
         abi: ROLE_MANAGER_ABI,
@@ -58,12 +65,24 @@ export async function getOnChainRoles(address: string): Promise<{ isAdmin: boole
         functionName: 'isAuditor',
         args: [address as `0x${string}`],
       }),
+      readContract(config, {
+        address: ROLE_MANAGER_ADDRESS,
+        abi: ROLE_MANAGER_ABI,
+        functionName: 'isUser',
+        args: [address as `0x${string}`],
+      }),
     ]);
 
+    const hasAdmin = Boolean(isAdmin) || isKnownAdmin;
+    const hasManager = Boolean(isManager) || hasAdmin;
+    const hasAuditor = Boolean(isAuditor);
+    const hasUser = Boolean(isUser) || hasAdmin || hasManager || hasAuditor;
+
     return {
-      isAdmin: Boolean(isAdmin) || isKnownAdmin,
-      isManager: Boolean(isManager) || Boolean(isAdmin) || isKnownAdmin,
-      isAuditor: Boolean(isAuditor),
+      isAdmin: hasAdmin,
+      isManager: hasManager,
+      isAuditor: hasAuditor,
+      isUser: hasUser,
     };
   } catch (err) {
     console.warn('Failed to query on-chain roles directly:', err);
@@ -71,6 +90,7 @@ export async function getOnChainRoles(address: string): Promise<{ isAdmin: boole
       isAdmin: isKnownAdmin,
       isManager: isKnownAdmin,
       isAuditor: false,
+      isUser: true,
     };
   }
 }
@@ -98,6 +118,7 @@ export async function authenticateWithWallet(address: string): Promise<VerifySig
     result.is_admin = result.is_admin || onChainRoles.isAdmin;
     result.is_manager = result.is_manager || onChainRoles.isManager;
     result.is_auditor = result.is_auditor || onChainRoles.isAuditor;
+    result.is_user = result.is_user || onChainRoles.isUser;
 
     // Step 4: Store JWT token
     if (result.authenticated && result.token) {
@@ -128,6 +149,7 @@ export async function authenticateWithWallet(address: string): Promise<VerifySig
       is_admin: onChainRoles.isAdmin,
       is_manager: onChainRoles.isManager,
       is_auditor: onChainRoles.isAuditor,
+      is_user: onChainRoles.isUser,
       token: '',
       expires_in: 0,
     };
